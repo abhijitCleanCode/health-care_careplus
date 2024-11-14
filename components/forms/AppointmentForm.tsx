@@ -10,18 +10,19 @@ import Image from "next/image"
 import { Form } from "@/components/ui/form"
 import CustomFormField from "../CustomFormField"
 import SubmitButton from "../SubmitButton"
-import { AppointmentFormValidation } from "@/lib/validation"
-import { createUser } from "@/lib/actions/patients.actions"
+import { getAppointmentSchema } from "@/lib/validation"
 import { FormFieldType } from "./PatientForm"
 import { Doctors } from "@/constants"
 import { SelectItem } from "../ui/select"
 import { createAppointment } from "@/lib/actions/appointment.actions"
 
 const AppointmentForm = (
-  { userId, patientId, type }: { userId: string, patientId: string, type: 'create' | 'cancel' | 'schedule' }
+  { userId, patientId, type = "create" }: { userId: string, patientId: string, type: 'create' | 'cancel' | 'schedule' }
 ) => {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  // getAppointmentSchema depends on appointment type
+  const AppointmentFormValidation = getAppointmentSchema(type);
 
   // 1. Define your form, which is of type formSchema
   const form = useForm<z.infer<typeof AppointmentFormValidation>>({
@@ -50,24 +51,31 @@ const AppointmentForm = (
         status = "scheduled"
         break;
       default :
-        status = "Pending"
+        status = "pending"
         break;
     }
 
     try {
-      if (type === 'create' && patientId) {
+      if (type === "create" && patientId) {
         // create the data
         const appointmentData = {
           userId,
           patient: patientId,
           primaryPhysician: values.primaryPhysician,
           schedule: new Date (values.schedule),
-          reason: values.reason,
-          note: values.note,
+          reason: values.reason!,
+          note: values.note!,
           status: status as Status, 
         }
+
+        console.log(appointmentData);
         // send it to backend
         const appointment = await createAppointment(appointmentData);
+
+        if (appointment) {
+          form.reset();
+          router.push(`/patients/${userId}/new-appointment/success?appointmentId=${appointment.$id}`);
+        }
       }
     } catch (error) {
       console.log("PatientForm :: onSubmit :: Error while submitting a form: ", error);
@@ -164,7 +172,7 @@ const AppointmentForm = (
 
         {/* isLoading is pass just to get know when to stop loading */}
         <SubmitButton isLoading={isLoading}
-          className={`${type === 'cancel' ? 'shad-danger-btn' : 'shadow-primary-btn'} w-full`}
+          className={`${type === 'cancel' ? 'shad-danger-btn' : 'shad-primary-btn'} w-full`}
         >
           {buttonLabel}
         </SubmitButton>
